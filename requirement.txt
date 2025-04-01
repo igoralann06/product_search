@@ -1,0 +1,8 @@
+requests  
+beautifulsoup4  
+xlwt  
+fake_useragent  
+selenium  
+undetected_chromedriver  
+webdriver-manager
+flask

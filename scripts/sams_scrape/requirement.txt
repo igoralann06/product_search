@@ -1,0 +1,7 @@
+requests
+beautifulsoup4
+xlwt
+fake_useragent
+selenium
+webdriver-manager
+undetected-chromedriver
