@@ -5,22 +5,16 @@ SCRIPTS_DIR = "scripts"
 
 # Mapping script directories to their respective scripts and descriptions
 SCRIPT_DETAILS = {
-    1: ("bjs_scrape", "main.py", "Scrapes data from BJ's Wholesale Club."),
-    2: ("costco_scrape", "main.py", "Scrapes data from Costco."),
-    3: ("instacart_scrape", "norating.py", "Scrapes data from Instacart (excluding ratings)."),
-    4: ("resdepos_scrape", "main.py", "Scrapes data from Resdepos."),
-    5: ("sams_scrape", "temp.py", "Scrapes data from Sam's Club."),
-    6: ("jobs_scrape", "main.py", "Scrapes job listings from various sources."),
-    7: ("instacart_aldi", "aldi.py", "Scrapes instacart-aldi."),
-    8: ("instacart_bjs", "bjs.py", "Scrapes instacart-bjs."),
-    9: ("instacart_costco", "costco.py", "Scrapes instacart-costco."),
-    10: ("instacart_milams", "milams.py", "Scrapes instacart-milams."),
-    11: ("instacart_publix", "publix.py", "Scrapes instacart-publix."),
-    12: ("instacart_resdept", "restaurant_depot.py", "Scrapes instacart-resdept."),
-    13: ("instacart_sabor_tropical", "sabor_tropical.py", "Scrapes instacart-sabor_tropical."),
-    14: ("instacart_sams", "sams.py", "Scrapes instacart-sams."),
-    15: ("instacart_target", "target.py", "Scrapes instacart-target."),
-    16: ("instacart_walmart", "walmart.py", "Scrapes instacart-walmart."),
+    1: ("instacart_aldi", "aldi.py", "Scrapes instacart-aldi."),
+    2: ("instacart_bjs", "bjs.py", "Scrapes instacart-bjs."),
+    3: ("instacart_costco", "costco.py", "Scrapes instacart-costco."),
+    4: ("instacart_milams", "milams.py", "Scrapes instacart-milams."),
+    5: ("instacart_publix", "publix.py", "Scrapes instacart-publix."),
+    6: ("instacart_resdept", "restaurant_depot.py", "Scrapes instacart-resdept."),
+    7: ("instacart_sabor_tropical", "sabor_tropical.py", "Scrapes instacart-sabor_tropical."),
+    8: ("instacart_sams", "sams.py", "Scrapes instacart-sams."),
+    9: ("instacart_target", "target.py", "Scrapes instacart-target."),
+    10: ("instacart_walmart", "walmart.py", "Scrapes instacart-walmart."),
 }
 
 def list_scripts():

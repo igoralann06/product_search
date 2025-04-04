@@ -138,7 +138,7 @@ def get_product_list(driver):
 
             try:
                 img_element = element.find_element(By.TAG_NAME, "img")
-                image_url = img_element.get_attribute("srcset").split(", ")[0]
+                image_url = img_element.get_dom_attribute("srcset").split(", ")[0]
             except:
                 image_url = ""
             
@@ -168,7 +168,7 @@ def get_product_list(driver):
             
             try:
                 product_link_element = element.find_element(By.TAG_NAME, "a")
-                product_link = product_link_element.get_attribute("href")
+                product_link = product_link_element.get_dom_attribute("href")
             except:
                 product_link = ""
 
@@ -246,9 +246,9 @@ if __name__ == "__main__":
     
     records = get_product_list(driver=driver)
 
-    create_database_table("product_search.db", "google_store_data")
-    for row_index, row in enumerate(records):
-        get_products(driver, row[6], "product_search.db", "google_store_data", current_time, prefix, 10)
+    # create_database_table("product_search.db", "google_store_data")
+    # for row_index, row in enumerate(records):
+    #     get_products(driver, row[6], "product_search.db", "google_store_data", current_time, prefix, 10)
         
     for row_index, row in enumerate(records):
         for col_index, value in enumerate(row):

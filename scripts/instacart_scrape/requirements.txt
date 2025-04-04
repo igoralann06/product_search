@@ -1,3 +1,0 @@
-xlwt
-selenium
-undetected_chromedriver
