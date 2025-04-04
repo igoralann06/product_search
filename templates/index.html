@@ -3,317 +3,206 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Script Runner</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <style>
-        .main-button {
-            transition: transform 0.2s;
-            cursor: pointer;
-            margin-bottom: 20px;
-        }
-        .main-button:hover {
-            transform: translateY(-5px);
-        }
-        .image-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            margin-top: 20px;
-        }
-        .image-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .image-card.selected {
-            border: 3px solid #007bff;
-            box-shadow: 0 0 10px rgba(0,123,255,0.5);
-        }
-        .image-card img {
-            width: 100%;
-            height: 200px;
-            object-fit: cover;
-        }
-        .script-selector {
-            display: none;
-            margin-top: 20px;
-        }
-        .pagination {
-            margin-top: 20px;
-        }
-        .product-name {
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 4px;
-            margin-bottom: 20px;
-            display: none;
-        }
-        .product-details {
-            padding: 10px;
-            background: #fff;
-            border-radius: 4px;
-            margin-top: 10px;
-            font-size: 0.9em;
-        }
-        .product-price {
-            color: #28a745;
-            font-weight: bold;
-        }
-        .product-store {
-            color: #6c757d;
-        }
-        .product-category {
-            color: #17a2b8;
-            font-size: 0.8em;
-        }
-    </style>
+    <title>Product Listings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-light">
-    <div class="container py-5">
-        <h1 class="text-center mb-5">Script Runner Dashboard</h1>
+<body class="bg-gray-100 p-6">
+
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row gap-6">
         
-        <div class="row">
-            <div class="col-md-8 mx-auto">
-                <!-- Main Buttons -->
-                <div class="row g-4 mb-4">
-                    <div class="col-md-4">
-                        <button class="btn btn-primary w-100 main-button" onclick="showScriptSelector()">
-                            <i class="fas fa-terminal me-2"></i>Select store
-                        </button>
-                    </div>
-                    <div class="col-md-4">
-                        <button class="btn btn-success w-100 main-button" onclick="searchGoogleImages()">
-                            <i class="fas fa-search me-2"></i>Google Images
-                        </button>
-                    </div>
-                    <div class="col-md-4">
-                        <button class="btn btn-info w-100 main-button" onclick="searchWalmartImages()">
-                            <i class="fas fa-store me-2"></i>Walmart Images
-                        </button>
-                    </div>
-                </div>
+        <!-- Left Side: Table List -->
+        <div class="w-full md:w-1/3 bg-white p-4 rounded-lg shadow-lg overflow-y-auto max-h-screen">
+            <h2 class="text-xl font-bold mb-4">Product Tables</h2>
+            
+            <!-- Table Search Bar -->
+            <input type="text" id="tableSearch" onkeyup="filterTable()" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-3"
+                placeholder="Search in table...">
+            
+                <ul id="tableList" class="list-none">
+                    {% for table_name in table_names %}
+                        <li class="py-2 px-3 border-b hover:bg-gray-200 cursor-pointer" 
+                            onclick="window.location.href='/products/{{ table_name }}'">
+                            {{ table_name }}
+                        </li>
+                    {% endfor %}
+                </ul>
+        </div>
 
-                <!-- Script Selector -->
-                <div id="script-selector" class="script-selector">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">Select Script</h5>
-                            <select class="form-select mb-3" id="script-dropdown">
-                                <option value="">Choose a script...</option>
-                                {% for script in scripts %}
-                                <option value="{{ script.id }}">{{ script.name }}</option>
-                                {% endfor %}
-                            </select>
-                            <button class="btn btn-primary" onclick="runSelectedScript()">
-                                <i class="fas fa-play me-2"></i>Run Script
-                            </button>
+        <!-- Right Side: Product Grid -->
+        <div class="w-full md:w-2/3">
+            <h2 class="text-xl font-bold mb-4">Product Listings</h2>
+            
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="store" class="px-3 py-2 border rounded-lg w-1/2" placeholder="Enter store...">
+                <button id="searchButton" onclick="fetchProducts()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">Search</button>
+            </div>
+        
+            <!-- Grid Search Bar -->
+            <input type="text" id="gridSearch" onkeyup="filterGrid()" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg mb-3"
+                placeholder="Search in product list...">
+
+            <button onclick="submitSelectedProducts()" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-lg">Submit Selected</button>
+            
+            <div id="productGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {% if products %}
+                    {% set max_score_product = products | sort(attribute='11', reverse=True) | first %}
+                    {% for product in products %}
+                        <div class="bg-white p-4 rounded-lg shadow-lg relative group">
+                            <input type="checkbox" class="productCheckbox" data-product='{{ product | tojson | safe }}'>
+                            <a href="{{ product[2]}}" target="_blank">
+                                <img src="/{{ product[7] }}" alt="{{ product[1] }}" class="w-full h-40 object-cover rounded-md">
+                            </a>
+                            <h2 class="text-lg font-semibold mt-2">{{ product[5] }}</h2>
+                            <p class="text-blue-600 font-bold mt-1">{{ product[6] }}</p>
+                            <p class="text-sm text-gray-600 mt-1">Store: {{ product[4] }}</p>
+            
+                            <!-- Display Recommendation Badge if this product has the highest score -->
+                            {% if product == max_score_product %}
+                                <div class="mt-2 text-sm text-white bg-green-600 px-2 py-1 rounded-full">Recommended</div>
+                            {% endif %}
+
+                            <!-- Comparison Buttons (Hidden by default, shown on hover) -->
+                            <div class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center gap-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg">
+                                <button onclick="compareProduct('{{ product[5] }}', 'google')" 
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                    Compare on Google
+                                </button>
+                                <button onclick="compareProduct('{{ product[5] }}', 'walmart')" 
+                                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                                    Compare on Walmart
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-center text-gray-600">No products available in this table.</p>
+                {% endif %}
+            </div>
+            
 
-                <!-- Selected Product Name -->
-                <div id="product-name" class="product-name">
-                    <strong>Selected Product:</strong> <span id="selected-product-name"></span>
-                </div>
+            <div class="flex justify-center mt-4">
+                {% if page > 1 %}
+                    <a href="/products/{{ selected_table }}?page={{ page - 1 }}" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg mr-2">
+                        Previous
+                    </a>
+                {% endif %}
+                <span class="px-4 py-2 text-lg">{{ page }} / {{ total_pages }}</span>
+                {% if page < total_pages %}
+                    <a href="/products/{{ selected_table }}?page={{ page + 1 }}" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg ml-2">
+                        Next
+                    </a>
+                {% endif %}
+            </div>
+                
+        </div>
 
-                <!-- Image Results -->
-                <div id="image-results" class="mt-4" style="display: none;">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h5 class="card-title mb-4">Latest Products</h5>
-                            <div class="image-grid" id="image-grid"></div>
-                            
-                            <!-- Pagination -->
-                            <nav aria-label="Page navigation" class="mt-4">
-                                <ul class="pagination justify-content-center" id="pagination">
-                                    <li class="page-item">
-                                        <a class="page-link" href="#" onclick="changePage(-1)">Previous</a>
-                                    </li>
-                                    <li class="page-item">
-                                        <span class="page-link" id="current-page">Page 1</span>
-                                    </li>
-                                    <li class="page-item">
-                                        <a class="page-link" href="#" onclick="changePage(1)">Next</a>
-                                    </li>
-                                </ul>
-                            </nav>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Loading Spinner -->
-                <div class="loading text-center mt-4" id="loading">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Loading...</p>
-                </div>
+        <div id="loadingModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 hidden">
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+                <p class="text-lg font-semibold">Searching...</p>
             </div>
         </div>
+        
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let currentPage = 1;
-        let totalPages = 1;
-        let imagesPerPage = 12;
-        let currentImages = [];
-        let selectedProduct = null;
+        // Table Search Function
+        function filterTable() {
+            let input = document.getElementById("tableSearch").value.toLowerCase();
+            let items = document.querySelectorAll("#tableList li");
 
-        function showScriptSelector() {
-            document.getElementById('script-selector').style.display = 'block';
-            document.getElementById('image-results').style.display = 'none';
-            document.getElementById('product-name').style.display = 'none';
-            selectedProduct = null;
-        }
-
-        async function runSelectedScript() {
-            const scriptId = document.getElementById('script-dropdown').value;
-            if (!scriptId) {
-                alert('Please select a script first');
-                return;
-            }
-
-            const loading = document.getElementById('loading');
-            const imageResults = document.getElementById('image-results');
-            const imageGrid = document.getElementById('image-grid');
-            
-            loading.style.display = 'block';
-            imageResults.style.display = 'none';
-            imageGrid.innerHTML = '';
-
-            try {
-                const response = await fetch(`/api/scripts/${scriptId}/run`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ type: 'caller' })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentImages = data.images || [];
-                    totalPages = Math.ceil(currentImages.length / imagesPerPage);
-                    displayImages(currentImages);
-                    imageResults.style.display = 'block';
-                } else {
-                    alert(`Error: ${data.error}`);
-                }
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-
-        function selectImage(imageUrl, productName) {
-            // Remove selection from all images
-            document.querySelectorAll('.image-card').forEach(card => {
-                card.classList.remove('selected');
+            items.forEach(item => {
+                let text = item.innerText.toLowerCase();
+                item.style.display = text.includes(input) ? "block" : "none";
             });
-            
-            // Add selection to clicked image
-            const imageCard = document.querySelector(`[data-url="${imageUrl}"]`);
-            if (imageCard) {
-                imageCard.classList.add('selected');
-            }
-            
-            selectedProduct = productName;
-            document.getElementById('product-name').style.display = 'block';
-            document.getElementById('selected-product-name').textContent = productName;
         }
 
-        async function searchGoogleImages() {
-            if (!selectedProduct) {
-                alert('Please select a product first');
+        // Product Grid Search Function
+        function filterGrid() {
+            let input = document.getElementById("gridSearch").value.toLowerCase();
+            let products = document.querySelectorAll("#productGrid > div");
+
+            products.forEach(product => {
+                let title = product.querySelector("h2").innerText.toLowerCase();
+
+                product.style.display = title.includes(input) ? "block" : "none";
+            });
+        }
+
+        function fetchProducts() {
+            const button = document.getElementById('searchButton');
+            const loadingModal = document.getElementById('loadingModal');
+            
+            button.disabled = true;
+            loadingModal.classList.remove('hidden'); // Show loading modal
+            
+            let store = document.getElementById("store").value.trim();
+
+            if (!store) {
+                alert("Please enter store.");
+                loadingModal.classList.add('hidden'); // Hide modal on validation error
+                button.disabled = false;
                 return;
             }
-            await searchImages('google');
+
+            fetch(`/get_products?store=${encodeURIComponent(store)}&item_count=20`)
+            .then(response => response.json())
+            .then(data => {
+                alert("Search completed");
+                document.location.reload();
+            })
+            .finally(() => {
+                loadingModal.classList.add('hidden'); // Hide loading modal when done
+                button.disabled = false;
+            });
         }
 
-        async function searchWalmartImages() {
-            if (!selectedProduct) {
-                alert('Please select a product first');
+        function submitSelectedProducts() {
+            let selectedProducts = [];
+            document.querySelectorAll(".productCheckbox:checked").forEach(checkbox => {
+                selectedProducts.push(JSON.parse(checkbox.dataset.product));
+            });
+            if (selectedProducts.length === 0) {
+                alert("No products selected.");
                 return;
             }
-            await searchImages('walmart');
+            fetch("/submit_products", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ products: selectedProducts })
+            }).then(response => response.json())
+              .then(data => alert("Submission successful"))
+              .catch(error => alert("Error submitting data: " + error));
         }
 
-        async function searchImages(type) {
-            const loading = document.getElementById('loading');
-            const imageResults = document.getElementById('image-results');
-            const imageGrid = document.getElementById('image-grid');
+        function compareProduct(productName, platform) {
+            if (platform === 'google') {
+                window.open(`http://localhost:3000?name=${encodeURIComponent(productName)}`, '_blank');
+                return;
+            }
+
+            if (platform === 'walmart') {
+                window.open(`http://localhost:4000?name=${encodeURIComponent(productName)}`, '_blank');
+                return;
+            }
             
-            loading.style.display = 'block';
-            imageResults.style.display = 'none';
-            imageGrid.innerHTML = '';
-
-            try {
-                const response = await fetch(`/api/search/images`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        type: type,
-                        product: selectedProduct
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (data.success) {
-                    currentImages = data.images || [];
-                    totalPages = Math.ceil(currentImages.length / imagesPerPage);
-                    displayImages(currentImages);
-                    imageResults.style.display = 'block';
-                } else {
-                    alert(`Error: ${data.error}`);
-                }
-            } catch (error) {
-                alert(`Error: ${error.message}`);
-            } finally {
-                loading.style.display = 'none';
-            }
-        }
-
-        function displayImages(images) {
-            const imageGrid = document.getElementById('image-grid');
-            const startIndex = (currentPage - 1) * imagesPerPage;
-            const endIndex = startIndex + imagesPerPage;
-            const pageImages = images.slice(startIndex, endIndex);
-
-            imageGrid.innerHTML = pageImages.map(image => `
-                <div class="image-card" data-url="${image.image_url}" onclick="selectImage('${image.image_url}', '${image.product_name}')">
-                    <img src="${image.image_url}" alt="${image.product_name}" class="img-fluid">
-                    <div class="product-details">
-                        <div class="product-name">${image.product_name}</div>
-                        <div class="product-price">$${image.price}</div>
-                        <div class="product-store">${image.store_name}</div>
-                        <div class="product-category">${image.category}</div>
-                    </div>
-                </div>
-            `).join('');
-
-            updatePagination();
-        }
-
-        function updatePagination() {
-            document.getElementById('current-page').textContent = `Page ${currentPage} of ${totalPages}`;
-        }
-
-        function changePage(delta) {
-            const newPage = currentPage + delta;
-            if (newPage >= 1 && newPage <= totalPages) {
-                currentPage = newPage;
-                displayImages(currentImages);
-            }
+            const loadingModal = document.getElementById('loadingModal');
+            loadingModal.classList.remove('hidden');
+            
+            fetch(`/get_products?store=${encodeURIComponent(productName)}&platform=${platform}&item_count=20`)
+            .then(response => response.json())
+            .then(data => {
+                alert("Search completed");
+                document.location.reload();
+            })
+            .finally(() => {
+                loadingModal.classList.add('hidden');
+            });
         }
     </script>
+
 </body>
-</html> 
+</html>

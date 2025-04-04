@@ -1,261 +1,279 @@
-from flask import Flask, jsonify, request, render_template
+import requests
+import xlwt
+from datetime import datetime, timedelta
 import os
-import subprocess
-from typing import Dict, List, Tuple
-import json
-from dotenv import load_dotenv
+import imghdr
 import sqlite3
-from datetime import datetime
 
-load_dotenv()
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+import re
+import time
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+import undetected_chromedriver as uc
+from selenium.webdriver.chrome.options import Options
+
+from flask import Flask, render_template, send_from_directory, request, jsonify
+import base64
+from flask_cors import CORS
+
+from walmart import get_records
 
 app = Flask(__name__)
+CORS(app)
 
-SCRIPTS_DIR = "scripts"
-PRODUCTS_DIR = "products"
+def create_database_table(db_name, table_name):
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
 
-# Define script directories and their descriptions
-SCRIPT_DIRS = {
-    'caller_script': 'Scripts for calling other scripts',
-    'google_shopping_api': 'Google Shopping API integration scripts',
-    'instacart_walmart': 'Walmart and Instacart integration scripts',
-    'product_search': 'Product search and comparison scripts'
-}
+    print(table_name)
 
-# Define script details
-SCRIPT_DETAILS = {
-    1: ("instacart_aldi", "aldi.py", "Scrapes instacart-aldi."),
-    2: ("instacart_bjs", "bjs.py", "Scrapes instacart-bjs."),
-    3: ("instacart_costco", "costco.py", "Scrapes instacart-costco."),
-    4: ("instacart_milams", "milams.py", "Scrapes instacart-milams."),
-    5: ("instacart_publix", "publix.py", "Scrapes instacart-publix."),
-    6: ("instacart_resdept", "restaurant_depot.py", "Scrapes instacart-resdept."),
-    7: ("instacart_sabor_tropical", "sabor_tropical.py", "Scrapes instacart-sabor_tropical."),
-    8: ("instacart_sams", "sams.py", "Scrapes instacart-sams."),
-    9: ("instacart_target", "target.py", "Scrapes instacart-target."),
-    10: ("instacart_walmart", "walmart.py", "Scrapes instacart-walmart.")
-}
+    create_table_query = f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        id INTEGER PRIMARY KEY,
+        store_page_link TEXT,
+        product_item_page_link TEXT,
+        platform TEXT,
+        store TEXT,
+        product_name TEXT,
+        price TEXT,
+        image_file_name TEXT,
+        image_link TEXT,
+        product_rating TEXT,
+        product_review_number TEXT,
+        score TEXT
+    );
+    """
+    cursor.execute(create_table_query)
+    conn.commit()
+    conn.close()
 
-def get_script_details() -> List[Dict]:
-    """Returns a list of available scripts with their details."""
-    return [
-        {
-            "id": num,
-            "name": script[0],
-            "description": script[2]
-        }
-        for num, script in SCRIPT_DETAILS.items()
-    ]
+def insert_product_record(db_name, table_name, record):
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    
+    insert_query = f"""
+    INSERT INTO {table_name} (store_page_link, product_item_page_link, platform, store, product_name, price, image_file_name, image_link, product_rating, product_review_number, score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    
+    cursor.execute(insert_query, record)
+    conn.commit()
+    conn.close()
 
-def run_script(script_number: int, script_type: str) -> Dict:
-    """Runs the specified script and returns the result."""
-    if script_number in SCRIPT_DETAILS:
-        script_info = SCRIPT_DETAILS[script_number]
-        script_path = os.path.join(SCRIPTS_DIR, script_info[0], script_info[1])
+def scroll_to_bottom_multiple_times(driver, scroll_pause_time=2, max_scrolls=10):
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    scroll_count = 0
 
-        if os.path.exists(script_path):
-            try:
-                # Add script type as an argument
-                command = f"cd {SCRIPTS_DIR}/{script_info[0]} && python {script_info[1]} {script_type}"
-                process = subprocess.Popen(
-                    command,
-                    shell=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True
-                )
-                stdout, stderr = process.communicate()
-                
-                # Get the latest products from the database using the script's folder
-                latest_products = get_latest_products(script_info[0])
-                
-                # Try to parse the output as JSON if it contains image URLs
-                try:
-                    output_data = json.loads(stdout)
-                    return {
-                        "success": process.returncode == 0,
-                        "images": latest_products,
-                        "error": stderr
-                    }
-                except json.JSONDecodeError:
-                    # If not JSON, return as regular output with latest products
-                    return {
-                        "success": process.returncode == 0,
-                        "output": stdout,
-                        "images": latest_products,
-                        "error": stderr
-                    }
-            except Exception as e:
-                return {
-                    "success": False,
-                    "error": str(e)
-                }
-        else:
-            return {
-                "success": False,
-                "error": f"Script '{script_path}' not found."
-            }
-    else:
-        return {
-            "success": False,
-            "error": f"Invalid script number '{script_number}'."
-        }
+    while scroll_count < max_scrolls:
+        # Scroll down to the bottom
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause_time)  # Wait for new content to load
 
-def get_product_images() -> List[Dict]:
-    """Returns a list of product images from the products directory."""
-    images = []
-    if os.path.exists(PRODUCTS_DIR):
-        for filename in os.listdir(PRODUCTS_DIR):
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
-                # Extract product name from filename (assuming format: product_name.jpg)
-                product_name = os.path.splitext(filename)[0]
-                images.append({
-                    "url": f"/static/products/{filename}",
-                    "product_name": product_name
-                })
-    return images
+        # Calculate new scroll height and check if we've reached the bottom
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break  # Exit loop if no new content loads
+        last_height = new_height
+        scroll_count += 1
 
-def search_images(product_name: str, search_type: str) -> List[str]:
-    """Search for images based on product name and type."""
-    if search_type == 'google':
-        # Run Google image search script
-        script_folder = "google_images"
-        script_file = "main.py"
-        command = f"cd {SCRIPTS_DIR}/{script_folder} && python {script_file} {product_name}"
-    else:  # walmart
-        # Run Walmart image search script
-        script_folder = "walmart_images"
-        script_file = "main.py"
-        command = f"cd {SCRIPTS_DIR}/{script_folder} && python {script_file} {product_name}"
+def clean_price(value):
+    """Convert price from string to float."""
+    if not value or value.strip() == "":
+        return 0.0  # Default to 0 if missing
 
     try:
-        process = subprocess.Popen(
-            command,
-            shell=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        stdout, stderr = process.communicate()
-        
-        try:
-            output_data = json.loads(stdout)
-            return output_data.get("images", [])
-        except json.JSONDecodeError:
-            return []
-    except Exception as e:
-        print(f"Error searching images: {str(e)}")
-        return []
+        # Remove currency symbols, commas, and whitespace
+        cleaned = value.strip().replace("$", "").replace(",", "").replace(" ", "")
+        return float(cleaned)
+    except (ValueError, AttributeError):
+        return 0.0  # Return 0 if conversion fails
 
-def get_latest_products(script_folder: str = None):
-    """Fetch the latest products from the SQLite database"""
+def clean_rating(value):
+    """Convert rating from string to float, handling empty values."""
+    if not value or value.strip() == "":  
+        return 0.0  # Default to 0 if empty or None
+
     try:
-        # Construct database path based on script folder
-        if script_folder:
-            db_path = os.path.join(SCRIPTS_DIR, script_folder, 'product_search.db')
-        else:
-            db_path = 'product_search.db'
-            
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        # Get the latest timestamp from the database
-        cursor.execute("SELECT * FROM google_store_data")
-        latest_timestamp = cursor.fetchone()[0]
-        
-        if not latest_timestamp:
-            return []
-            
-        # Fetch products with the latest timestamp
-        cursor.execute("""
-            SELECT id, product_name, image_file_names, price, store_name, category
-            FROM google_store_data 
-            WHERE timestamp = ?
-            ORDER BY id DESC
-            LIMIT 50
-        """, (latest_timestamp,))
-        
-        products = []
-        for row in cursor.fetchall():
-            product = {
-                'id': row[0],
-                'product_name': row[1],
-                'image_url': f"/products/{latest_timestamp}/images/{row[2]}" if row[2] else None,
-                'price': row[3],
-                'store_name': row[4],
-                'category': row[5]
-            }
-            products.append(product)
-            
-        conn.close()
-        return products
-    except Exception as e:
-        print(f"Error fetching products: {str(e)}")
-        return []
+        return float(value)  # Convert regular number
+    except ValueError:
+        return 0.0  # Return 0 if conversion fails
+
+def get_products(store, db_name, table_name, current_time, prefix, item_count):
+    get_records(db_name, table_name, store, current_time, prefix)
+
+def clean_rating_count(value):
+    """Convert rating count from string to an integer."""
+    if not value or value.strip() == "":  
+        return 0  # Default to 0 if empty or None
+
+    value = value.strip("()")  # Remove parentheses
+
+    if 'K' in value:
+        return int(float(value.replace('K', '')) * 1000)  # Convert '5.1K' to 5100
+
+    try:
+        return int(value)  # Convert regular number
+    except ValueError:
+        return 0  # Return 0 if conversion fails
 
 @app.route('/')
 def index():
-    """Serve the web UI."""
-    return render_template('index.html', scripts=get_script_details())
-
-@app.route('/api/scripts', methods=['GET'])
-def list_scripts():
-    """API endpoint to list all available scripts."""
-    return jsonify({
-        "scripts": get_script_details()
-    })
-
-@app.route('/api/scripts/<int:script_number>/run', methods=['POST'])
-def execute_script(script_number):
-    """API endpoint to run a specific script."""
-    script_type = request.json.get('type', '')
-    result = run_script(script_number, script_type)
-    return jsonify(result)
-
-@app.route('/api/health', methods=['GET'])
-def health_check():
-    """API endpoint for health check."""
-    return jsonify({
-        "status": "healthy",
-        "scripts_available": len(SCRIPT_DETAILS)
-    })
-
-@app.route('/api/products/images', methods=['GET'])
-def get_images():
-    """API endpoint to get product images."""
-    images = get_product_images()
-    return jsonify({
-        "success": True,
-        "images": images
-    })
-
-@app.route('/api/search/images', methods=['POST'])
-def search_images_endpoint():
-    """API endpoint to search for images."""
-    data = request.json
-    product_name = data.get('product', '')
-    search_type = data.get('type', '')
+    db_name = "product_data.db"
+    page = request.args.get('page', 1, type=int)
     
-    if not product_name or not search_type:
-        return jsonify({
-            "success": False,
-            "error": "Product name and search type are required"
-        })
+    # Function to fetch table names
+    def get_table_names(db_name):
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        conn.close()
+        return [table[0] for table in tables]
+
+    # Fetch the table names
+    table_names = get_table_names(db_name)
+
+    # Pass the table names to the template
+    return render_template('index.html', table_names=table_names, page=page, total_pages=0)
+
+@app.route('/products/<table_name>')
+def get_products_by_table(table_name):
+    # Pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = 12  # Number of products per page
+    db_name = "product_data.db"
+
+    def get_table_names(db_name):
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        conn.close()
+        return [table[0] for table in tables]
     
-    images = search_images(product_name, search_type)
-    return jsonify({
-        "success": True,
-        "images": images
-    })
+    # Function to fetch product data from a specific table with pagination
+    def get_products_from_table(db_name, table_name, page, per_page):
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+        offset = (page - 1) * per_page  # Calculate the offset for pagination
+        
+        cursor.execute(f"""
+            SELECT * 
+            FROM {table_name}
+            WHERE price IS NOT NULL AND price != ''
+            ORDER BY CAST(REPLACE(REPLACE(price, '$', ''), ',', '') AS FLOAT) ASC
+            LIMIT {per_page} OFFSET {offset}
+        """)
+        products = cursor.fetchall()
+        conn.close()
+        return products
 
-@app.route('/api/products/latest', methods=['GET'])
-def get_latest_products_endpoint():
-    """API endpoint to get the latest products from the SQLite database."""
-    products = get_latest_products()
-    return jsonify({
-        "success": True,
-        "products": products
-    })
+    # Fetch the products for the selected table
+    products = get_products_from_table(db_name, table_name, page, per_page)
+    
+    # Fetch total number of products to calculate total pages
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    cursor.execute(f"SELECT COUNT(*) FROM {table_name} WHERE price IS NOT NULL AND price != ''")
+    total_products = cursor.fetchone()[0]
+    conn.close()
 
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    total_pages = (total_products // per_page) + (1 if total_products % per_page != 0 else 0)
+
+    # Return the template with the products and pagination info
+    return render_template(
+        'index.html', 
+        table_names=get_table_names(db_name), 
+        products=products, 
+        selected_table=table_name,
+        page=page,
+        total_pages=total_pages
+    )
+
+@app.route('/products/<path:filename>')
+def serve_products(filename):
+    return send_from_directory('products', filename)
+
+@app.route('/submit_products', methods=['POST'])
+def submit_products():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"message": "No data provided"}), 400
+            
+        selected_products = data.get('products', [])
+        if not selected_products:
+            return jsonify({"message": "No products selected."}), 400
+
+        # Database connection
+        db_name = "product_data.db"
+        conn = sqlite3.connect(db_name)
+        cursor = conn.cursor()
+
+        # Ensure the items_search table exists
+        create_database_table(db_name, "items_search")
+
+        insert_query = """
+        INSERT INTO items_search (store_page_link, product_item_page_link, platform, store, product_name, price, image_file_name, image_link, product_rating, product_review_number, score)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+
+        # Insert each product (excluding 'id')
+        for product in selected_products:
+            product_data = tuple(product[1:])  # Exclude the first element (id)
+            cursor.execute(insert_query, product_data)
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Products successfully inserted into items_search.", "products": selected_products}), 200
+
+    except Exception as e:
+        print(f"Error in submit_products: {str(e)}")
+        return jsonify({"message": f"Error submitting data: {str(e)}"}), 500
+
+@app.route('/get_products', methods=['GET'])
+def get_products_api():
+    store = request.args.get("store", "").strip()
+    item_count = int(request.args.get("item_count", "").strip())
+
+    titleData = ["id","Store page link", "Product item page link", "Platform", "Store", "Product_description", "Product Name", "Units/Counts", "Price", "image_file_names", "Image_Link", "Store Rating", "Store Review number", "Product Rating", "Product Review number"]
+    widths = [10,50,50,60,45,70,35,25,20,130,130,30,30,30,30,60]
+    style = xlwt.easyxf('font: bold 1; align: horiz center')
+    
+    if(not os.path.isdir("products")):
+        os.mkdir("products")
+
+    now = datetime.now()
+    current_time = now.strftime("%m_%d_%Y_%H_%M_%S")
+    prefix = now.strftime("%Y%m%d%H%M%S%f_")
+    os.mkdir("products/"+current_time+"_"+store)
+    os.mkdir("products/"+current_time+"_"+store+"/images")
+
+    db_name = "product_data.db"
+    table_name = f"search_{current_time}_{store.replace(' ', '_')}"
+    
+    workbook = xlwt.Workbook()
+    sheet = workbook.add_sheet('Sheet1')
+    
+    for col_index, value in enumerate(titleData):
+        first_col = sheet.col(col_index)
+        first_col.width = 256 * widths[col_index]  # 20 characters wide
+        sheet.write(0, col_index, value, style)
+    
+    create_database_table(db_name, table_name)
+    get_products(store=store, db_name=db_name, table_name=table_name, current_time=current_time, prefix=prefix, item_count=item_count)
+    return jsonify({"response": []})
+
+if __name__ == "__main__":
+    db_name = "product_data.db"
+    create_database_table(db_name, "items_search")
+    app.run(host="0.0.0.0", port=5000 ,threaded=True,)
+
+
+

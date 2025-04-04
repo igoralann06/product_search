@@ -16,6 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 import undetected_chromedriver as uc
 from selenium.webdriver.chrome.options import Options
 import sys
+import sqlite3
 
 sys.path.append("../..")
 from google_shopping_api import get_products, create_database_table
@@ -111,7 +112,20 @@ def scroll_to_bottom_multiple_times(driver, scroll_pause_time=2, max_scrolls=10)
         last_height = new_height
         scroll_count += 1
 
-def get_product_list(driver):
+def insert_product_record(db_name, table_name, record):
+    conn = sqlite3.connect(db_name)
+    cursor = conn.cursor()
+    
+    insert_query = f"""
+    INSERT INTO {table_name} (store_page_link, product_item_page_link, platform, store, product_name, price, image_file_name, image_link, product_rating, product_review_number, score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    
+    cursor.execute(insert_query, record)
+    conn.commit()
+    conn.close()
+
+def get_product_list(driver, db_name, table_name, current_time, prefix):
     global section_id, categories
     num = 0
     # driver.get(categories[0])
@@ -202,6 +216,22 @@ def get_product_list(driver):
                 "122.3960",
                 "",
             ]
+
+            db_record = (
+                "https://instacart.com",
+                "https://instacart.com"+product_link,
+                "Instacart",
+                "Walmart",
+                title,
+                price,
+                download_url,
+                image_url,
+                rating,
+                rating_count,
+                ""
+            )
+
+            insert_product_record(db_name, table_name, db_record)
             
             products.append(record)
             print(record)
@@ -210,10 +240,12 @@ def get_product_list(driver):
                 break
         num = num + 1
         break
-
+    
+    driver.quit()
+    
     return products
 
-if __name__ == "__main__":
+def get_records(db_name, table_name, store, current_time, prefix):
     options = uc.ChromeOptions()
     # options.add_argument("--headless=new")  # Enable headless mode
     options.add_argument("--disable-gpu")
@@ -230,9 +262,6 @@ if __name__ == "__main__":
     if(not os.path.isdir("products")):
         os.mkdir("products")
 
-    now = datetime.now()
-    current_time = now.strftime("%m-%d-%Y-%H-%M-%S")
-    prefix = now.strftime("%Y%m%d%H%M%S%f_")
     os.mkdir("products/"+current_time)
     os.mkdir("products/"+current_time+"/images")
     
@@ -244,18 +273,14 @@ if __name__ == "__main__":
         first_col.width = 256 * widths[col_index]  # 20 characters wide
         sheet.write(0, col_index, value, style)
     
-    records = get_product_list(driver=driver)
-
-    # create_database_table("product_search.db", "google_store_data")
-    # for row_index, row in enumerate(records):
-    #     get_products(driver, row[6], "product_search.db", "google_store_data", current_time, prefix, 10)
+    records = get_product_list(driver=driver, db_name=db_name, table_name=table_name, current_time=current_time, prefix=prefix)
         
     for row_index, row in enumerate(records):
         for col_index, value in enumerate(row):
             sheet.write(row_index+1, col_index, value)
 
     # Save the workbook
-    workbook.save("products/"+current_time+"/products.xls")
+    workbook.save("products/"+current_time+"_"+store+"/products.xls")
 
 
 
